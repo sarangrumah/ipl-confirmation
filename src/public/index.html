@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPL Payment Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Smooth modal backdrop */
+    #modal { transition: opacity 0.2s ease; }
+    /* Spinner animation */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; }
+    /* Truncate long phone numbers in narrow viewports */
+    .cell-phone { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+  <!-- ─── HEADER ─────────────────────────────────────────────────────────── -->
+  <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Icon -->
+        <div class="w-9 h-9 rounded-lg bg-green-600 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2"
+               viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round"
+               d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold leading-tight text-gray-900">IPL Payment Summary</h1>
+          <p class="text-xs text-gray-500">Iuran Pemeliharaan Lingkungan — Admin Dashboard</p>
+        </div>
+      </div>
+      <!-- CSV Export -->
+      <button onclick="exportCSV()"
+        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700
+               text-white text-sm font-medium transition-colors shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Export CSV
+      </button>
+    </div>
+  </header>
+
+  <!-- ─── SUMMARY CARDS ──────────────────────────────────────────────────── -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6" id="summary-cards">
+      <!-- Filled by renderSummaryCards() -->
+      <div class="col-span-2 sm:col-span-4 h-20 bg-white rounded-xl animate-pulse"></div>
+    </div>
+
+    <!-- ─── FILTERS ──────────────────────────────────────────────────────── -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4
+                flex flex-wrap items-center gap-3">
+      <div class="flex items-center gap-2 flex-1 min-w-[180px]">
+        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor"
+             stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z"/>
+        </svg>
+        <input id="search-input" type="text" placeholder="Cari blok, bulan, no. WA…"
+               oninput="applyFilters()"
+               class="w-full text-sm outline-none placeholder-gray-400 bg-transparent" />
+      </div>
+      <select id="status-filter" onchange="applyFilters()"
+              class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white
+                     focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer">
+        <option value="">Semua Status</option>
+        <option value="PENDING">Pending</option>
+        <option value="VERIFIED">Verified</option>
+        <option value="REJECTED">Rejected</option>
+      </select>
+      <span id="row-count" class="text-xs text-gray-400 ml-auto"></span>
+    </div>
+
+    <!-- ─── TABLE ────────────────────────────────────────────────────────── -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+              <th class="px-4 py-3 text-left font-semibold">Tanggal</th>
+              <th class="px-4 py-3 text-left font-semibold">No. WA</th>
+              <th class="px-4 py-3 text-left font-semibold">Blok</th>
+              <th class="px-4 py-3 text-left font-semibold">Bulan</th>
+              <th class="px-4 py-3 text-right font-semibold">Jumlah</th>
+              <th class="px-4 py-3 text-center font-semibold">Status</th>
+              <th class="px-4 py-3 text-center font-semibold">Bukti</th>
+              <th class="px-4 py-3 text-center font-semibold">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <!-- Filled by renderTable() -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty / Loading state -->
+      <div id="table-state" class="py-16 text-center text-gray-400 hidden">
+        <div id="state-spinner" class="flex justify-center mb-3 hidden">
+          <svg class="spinner w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+        </div>
+        <p id="state-message" class="text-sm"></p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ─── IMAGE MODAL ─────────────────────────────────────────────────────── -->
+  <div id="modal"
+       class="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 hidden"
+       onclick="closeModal(event)">
+    <div class="relative max-w-3xl w-full" onclick="event.stopPropagation()">
+      <button onclick="closeModal()"
+              class="absolute -top-10 right-0 text-white hover:text-gray-300 text-sm
+                     flex items-center gap-1 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        Tutup
+      </button>
+      <img id="modal-img" src="" alt="Bukti Pembayaran"
+           class="w-full rounded-xl shadow-2xl object-contain max-h-[80vh]"
+           onerror="this.src=''; this.alt='Gambar tidak tersedia'"/>
+      <a id="modal-open-tab" href="#" target="_blank"
+         class="mt-3 inline-flex items-center gap-1.5 text-white/80 hover:text-white text-xs
+                underline underline-offset-2 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+        Buka di tab baru
+      </a>
+    </div>
+  </div>
+
+  <!-- ─── TOAST ────────────────────────────────────────────────────────────── -->
+  <div id="toast"
+       class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium
+              text-white transform translate-y-12 opacity-0 transition-all duration-300 pointer-events-none">
+  </div>
+
+  <!-- ─── SCRIPT ───────────────────────────────────────────────────────────── -->
+  <script>
+    // ── State ────────────────────────────────────────────────────────────────
+    let allPayments = [];
+
+    // ── Bootstrap ────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', loadPayments);
+
+    // ── Data fetching ────────────────────────────────────────────────────────
+    async function loadPayments() {
+      showState('loading');
+      try {
+        const res = await fetch('/api/payments?limit=100');
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const json = await res.json();
+        allPayments = json.data || [];
+        renderSummaryCards(allPayments);
+        applyFilters();
+      } catch (err) {
+        showState('error', 'Gagal memuat data. Periksa koneksi atau coba refresh halaman.');
+        console.error('[dashboard] loadPayments failed:', err);
+      }
+    }
+
+    // ── Filters ──────────────────────────────────────────────────────────────
+    function applyFilters() {
+      const query  = document.getElementById('search-input').value.toLowerCase();
+      const status = document.getElementById('status-filter').value;
+
+      const filtered = allPayments.filter((p) => {
+        const matchesSearch =
+          !query ||
+          p.block_number.toLowerCase().includes(query)  ||
+          p.payment_month.toLowerCase().includes(query) ||
+          p.sender_number.replace('@c.us','').includes(query);
+        const matchesStatus = !status || p.status === status;
+        return matchesSearch && matchesStatus;
+      });
+
+      renderTable(filtered);
+      document.getElementById('row-count').textContent =
+        `${filtered.length} dari ${allPayments.length} data`;
+    }
+
+    // ── Summary cards ────────────────────────────────────────────────────────
+    function renderSummaryCards(payments) {
+      const total    = payments.length;
+      const pending  = payments.filter(p => p.status === 'PENDING').length;
+      const verified = payments.filter(p => p.status === 'VERIFIED').length;
+      const rejected = payments.filter(p => p.status === 'REJECTED').length;
+      const totalIDR = payments
+        .filter(p => p.status === 'VERIFIED')
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+
+      const cards = [
+        { label: 'Total Pembayaran', value: total,               color: 'blue',  icon: '📋' },
+        { label: 'Pending',          value: pending,             color: 'yellow', icon: '⏳' },
+        { label: 'Terverifikasi',    value: verified,            color: 'green',  icon: '✅' },
+        { label: 'Total Terkumpul',  value: formatIDR(totalIDR), color: 'green',  icon: '💰' },
+      ];
+
+      const colorMap = {
+        blue:   'bg-blue-50 border-blue-100 text-blue-700',
+        yellow: 'bg-yellow-50 border-yellow-100 text-yellow-700',
+        green:  'bg-green-50 border-green-100 text-green-700',
+      };
+
+      document.getElementById('summary-cards').innerHTML = cards.map(c => `
+        <div class="bg-white rounded-xl border ${colorMap[c.color]} shadow-sm p-4">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-medium text-gray-500">${c.label}</span>
+            <span class="text-lg">${c.icon}</span>
+          </div>
+          <div class="text-2xl font-bold ${colorMap[c.color].split(' ')[2]}">${c.value}</div>
+        </div>
+      `).join('');
+    }
+
+    // ── Table rendering ──────────────────────────────────────────────────────
+    function renderTable(payments) {
+      const tbody = document.getElementById('table-body');
+
+      if (payments.length === 0) {
+        tbody.innerHTML = '';
+        showState('empty', 'Tidak ada data yang cocok.');
+        return;
+      }
+
+      hideState();
+      tbody.innerHTML = payments.map((p, idx) => `
+        <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
+                    hover:bg-green-50/40 transition-colors border-b border-gray-100 last:border-0">
+
+          <!-- Date -->
+          <td class="px-4 py-3 text-gray-600 whitespace-nowrap text-xs">
+            ${formatDate(p.created_at)}
+          </td>
+
+          <!-- Phone -->
+          <td class="px-4 py-3">
+            <span class="cell-phone text-xs text-gray-500 font-mono block"
+                  title="${p.sender_number.replace('@c.us','')}">
+              ${p.sender_number.replace('@c.us','')}
+            </span>
+          </td>
+
+          <!-- Block -->
+          <td class="px-4 py-3">
+            <span class="font-semibold text-gray-800">${esc(p.block_number)}</span>
+          </td>
+
+          <!-- Month -->
+          <td class="px-4 py-3 text-gray-700">${esc(p.payment_month)}</td>
+
+          <!-- Amount -->
+          <td class="px-4 py-3 text-right font-semibold text-gray-800 whitespace-nowrap">
+            ${formatIDR(p.amount)}
+          </td>
+
+          <!-- Status badge -->
+          <td class="px-4 py-3 text-center">
+            ${statusBadge(p.status)}
+          </td>
+
+          <!-- Evidence thumbnail -->
+          <td class="px-4 py-3 text-center">
+            ${p.evidence_url
+              ? `<img src="${esc(p.evidence_url)}" alt="Bukti"
+                      loading="lazy"
+                      onclick="openModal('${esc(p.evidence_url)}')"
+                      class="w-12 h-12 object-cover rounded-lg border border-gray-200
+                             shadow-sm cursor-pointer hover:scale-105 hover:shadow-md
+                             transition-transform mx-auto"
+                      onerror="this.outerHTML='<span class=\'text-gray-300 text-xs\'>—</span>'" />`
+              : '<span class="text-gray-300 text-xs">—</span>'
+            }
+          </td>
+
+          <!-- Action buttons -->
+          <td class="px-4 py-3 text-center">
+            <div class="flex items-center justify-center gap-1.5">
+              ${p.status !== 'VERIFIED'
+                ? `<button onclick="updateStatus(${p.id}, 'VERIFIED')"
+                     title="Verifikasi"
+                     class="px-2.5 py-1 rounded-md bg-green-100 hover:bg-green-200 text-green-700
+                            text-xs font-medium transition-colors">
+                     ✓ Verifikasi
+                   </button>`
+                : ''}
+              ${p.status !== 'REJECTED'
+                ? `<button onclick="updateStatus(${p.id}, 'REJECTED')"
+                     title="Tolak"
+                     class="px-2.5 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-700
+                            text-xs font-medium transition-colors">
+                     ✗ Tolak
+                   </button>`
+                : ''}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // ── Status update ────────────────────────────────────────────────────────
+    async function updateStatus(id, status) {
+      try {
+        const res = await fetch(`/api/payments/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        // Update in-memory state so we don't need a full reload
+        const idx = allPayments.findIndex(p => p.id === id);
+        if (idx !== -1) allPayments[idx].status = status;
+
+        renderSummaryCards(allPayments);
+        applyFilters();
+        showToast(status === 'VERIFIED' ? '✅ Pembayaran diverifikasi' : '❌ Pembayaran ditolak',
+                  status === 'VERIFIED' ? 'green' : 'red');
+      } catch (err) {
+        showToast('⚠️ Gagal memperbarui status', 'red');
+        console.error('[dashboard] updateStatus failed:', err);
+      }
+    }
+
+    // ── CSV Export ───────────────────────────────────────────────────────────
+    function exportCSV() {
+      window.location.href = '/api/payments/export/csv';
+      showToast('📥 Mengunduh file CSV…', 'green');
+    }
+
+    // ── Modal ────────────────────────────────────────────────────────────────
+    function openModal(url) {
+      document.getElementById('modal-img').src = url;
+      document.getElementById('modal-open-tab').href = url;
+      const modal = document.getElementById('modal');
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => modal.style.opacity = '1');
+    }
+
+    function closeModal(event) {
+      if (event && event.target !== document.getElementById('modal')) return;
+      const modal = document.getElementById('modal');
+      modal.style.opacity = '0';
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        document.getElementById('modal-img').src = '';
+      }, 200);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal({ target: document.getElementById('modal') });
+    });
+
+    // ── Toast ────────────────────────────────────────────────────────────────
+    function showToast(message, color = 'green') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = toast.className.replace(/bg-\w+-\d+/g, '');
+      toast.classList.add(color === 'green' ? 'bg-green-600' : 'bg-red-600');
+      toast.style.transform = 'translateY(0)';
+      toast.style.opacity   = '1';
+      setTimeout(() => {
+        toast.style.transform = 'translateY(3rem)';
+        toast.style.opacity   = '0';
+      }, 3000);
+    }
+
+    // ── State helpers ────────────────────────────────────────────────────────
+    function showState(type, message = '') {
+      const container = document.getElementById('table-state');
+      const spinner   = document.getElementById('state-spinner');
+      const msg       = document.getElementById('state-message');
+      container.classList.remove('hidden');
+      if (type === 'loading') {
+        spinner.classList.remove('hidden');
+        msg.textContent = 'Memuat data…';
+      } else {
+        spinner.classList.add('hidden');
+        msg.textContent = message;
+      }
+    }
+
+    function hideState() {
+      document.getElementById('table-state').classList.add('hidden');
+    }
+
+    // ── Formatters ───────────────────────────────────────────────────────────
+    function formatIDR(amount) {
+      return 'Rp\u00A0' + Number(amount).toLocaleString('id-ID');
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+             + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function statusBadge(status) {
+      const map = {
+        PENDING:  'bg-yellow-100 text-yellow-700 border-yellow-200',
+        VERIFIED: 'bg-green-100  text-green-700  border-green-200',
+        REJECTED: 'bg-red-100    text-red-700    border-red-200',
+      };
+      const label = { PENDING: 'Pending', VERIFIED: 'Verified', REJECTED: 'Rejected' };
+      const cls = map[status] || 'bg-gray-100 text-gray-600 border-gray-200';
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-medium ${cls}">
+                ${label[status] || status}
+              </span>`;
+    }
+
+    function esc(str) {
+      return String(str ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+  </script>
+</body>
+</html>

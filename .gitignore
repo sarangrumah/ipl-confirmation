@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Environment — NEVER commit secrets
+.env
+
+# Google Service Account credential files — match only SA key filenames
+# (package.json, package-lock.json, etc. are NOT excluded)
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
+
+# SSH private keys — NEVER commit these
+*.ppk
+*.pem
+id_rsa
+id_rsa_*
+id_ed25519
+id_ed25519_*
+
+# WhatsApp session data (contains auth tokens)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Prisma generated client (regenerated via `npx prisma generate`)
+# node_modules/@prisma is already covered above
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Build artifacts
+dist/
