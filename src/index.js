@@ -3,6 +3,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const path    = require('path');
 const { initWhatsAppClient } = require('./bot/whatsappClient');
 const { validateDriveAccess } = require('./drive/driveService');
 const { basicAuth } = require('./middleware/auth');
@@ -17,35 +18,37 @@ if (!process.env.DASHBOARD_USERNAME || !process.env.DASHBOARD_PASSWORD) {
   process.exit(1);
 }
 
-const PORT = process.env.PORT || 3000;
-const app  = express();
+const PORT    = process.env.PORT    || 3000;
+const BASE    = process.env.BASE_PATH || '';  // e.g. "/ipl-confirmation"
 
+const app = express();
+
+// Trust the Nginx reverse proxy so req.ip, req.protocol, etc. are correct
+app.set('trust proxy', 1);
 app.use(express.json());
 
 // ── Public: health check ─────────────────────────────────────────────────────
-// Declared before basicAuth so uptime monitors never need credentials.
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get(`${BASE}/health`, (_req, res) => res.json({ status: 'ok' }));
 
-// ── Auth gate: all routes below this line are protected ──────────────────────
+// ── Auth gate ────────────────────────────────────────────────────────────────
 app.use(basicAuth);
 
 // ── Protected: dashboard static files ───────────────────────────────────────
-// basicAuth runs before express.static — unauthenticated requests never touch
-// the filesystem and never reveal that a dashboard exists.
-app.use(express.static('src/public'));
+app.use(BASE, express.static(path.join(__dirname, 'public')));
 
 // ── Protected: REST API ──────────────────────────────────────────────────────
-app.use('/api/payments', paymentRoutes);
+app.use(`${BASE}/api/payments`, paymentRoutes);
 
 // ── Boot sequence ────────────────────────────────────────────────────────────
 const startServer = async () => {
   try {
-    app.listen(PORT, () => {
-      console.log(`[server] Listening on port ${PORT}`);
+    app.listen(PORT, '127.0.0.1', () => {
+      // Bind to localhost only — Nginx is the public-facing entry point
+      console.log(`[server] Listening on 127.0.0.1:${PORT} (base path: "${BASE || '/'}")`);
       console.log(`[server] Dashboard protected — username: ${process.env.DASHBOARD_USERNAME}`);
     });
 
-    await validateDriveAccess(); // fail fast if Drive credentials or folder are misconfigured
+    await validateDriveAccess();
     await initWhatsAppClient();
   } catch (err) {
     console.error('[server] Failed to start:', err);

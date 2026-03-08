@@ -149,6 +149,11 @@
 
   <!-- ─── SCRIPT ───────────────────────────────────────────────────────────── -->
   <script>
+    // ── Base path ─────────────────────────────────────────────────────────────
+    // Reads the sub-path from the page URL so API calls always resolve correctly
+    // whether the app is served from / or from /ipl-confirmation.
+    const BASE = window.location.pathname.replace(/\/(index\.html)?$/, '').replace(/\/api.*$/, '');
+
     // ── State ────────────────────────────────────────────────────────────────
     let allPayments = [];
 
@@ -159,7 +164,7 @@
     async function loadPayments() {
       showState('loading');
       try {
-        const res = await fetch('/api/payments?limit=100');
+        const res = await fetch(`${BASE}/api/payments?limit=100`);
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const json = await res.json();
         allPayments = json.data || [];
@@ -313,7 +318,7 @@
     // ── Status update ────────────────────────────────────────────────────────
     async function updateStatus(id, status) {
       try {
-        const res = await fetch(`/api/payments/${id}/status`, {
+        const res = await fetch(`${BASE}/api/payments/${id}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status }),
@@ -336,7 +341,7 @@
 
     // ── CSV Export ───────────────────────────────────────────────────────────
     function exportCSV() {
-      window.location.href = '/api/payments/export/csv';
+      window.location.href = `${BASE}/api/payments/export/csv`;
       showToast('📥 Mengunduh file CSV…', 'green');
     }
 
